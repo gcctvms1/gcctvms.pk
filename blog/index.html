@@ -25,7 +25,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@200;300;400;500;600;700;800&display=swap"
         rel="stylesheet">
-    <link rel="stylesheet" href="../assets/css/style.css?v=13">
+    <link rel="stylesheet" href="../assets/css/style.css?v=14">
 
     <script type="application/ld+json">
     {
@@ -310,10 +310,10 @@
             </div>
         </section>
 
-        <!-- Article listing: filled from published posts. None are published yet. -->
+        <!-- Article listing: written by scripts/build-blog.mjs from Contentful. Keep the BLOG:LIST markers. -->
         <section class="section blog-index">
             <div class="container">
-                <div class="posts" id="postList" data-empty="true"></div>
+                <!-- BLOG:LIST:START -->
                 <div class="empty-state reveal">
                     <span class="empty-state__icon"><svg class="ic"><use href="#i-grid" /></svg></span>
                     <p class="empty-state__title">No articles are published yet.</p>
@@ -323,6 +323,7 @@
                         <a class="btn btn--ghost" href="/faqs/">FAQs</a>
                     </div>
                 </div>
+                <!-- BLOG:LIST:END -->
             </div>
         </section>
     </main>
