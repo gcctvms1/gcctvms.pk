@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// One-time setup: create (or update) the "Blog Post" content type in Contentful.
+// One-time setup: create (or update) the "FAQ" and "Blog Post" content types in Contentful.
 //
 //   CONTENTFUL_SPACE_ID=xxxx CONTENTFUL_MANAGEMENT_TOKEN=CFPAT-xxxx node scripts/create-contentful-model.mjs
 //
@@ -9,52 +9,65 @@
 const space = process.env.CONTENTFUL_SPACE_ID;
 const token = process.env.CONTENTFUL_MANAGEMENT_TOKEN;
 const envId = process.env.CONTENTFUL_ENVIRONMENT || 'master';
-const typeId = process.env.CONTENT_TYPE_ID || 'blogPost';
+const postTypeId = process.env.CONTENT_TYPE_ID || 'blogPost';
+const faqTypeId = process.env.FAQ_TYPE_ID || 'faq';
 if (!space || !token) { console.error('Set CONTENTFUL_SPACE_ID and CONTENTFUL_MANAGEMENT_TOKEN.'); process.exit(1); }
 
-const fields = [
-  { id: 'title', name: 'Title', type: 'Symbol', required: true, validations: [{ size: { max: 120 } }] },
-  { id: 'slug', name: 'Slug', type: 'Symbol', required: true, validations: [{ unique: true }, { regexp: { pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }, message: 'Lowercase letters, numbers and hyphens only' }] },
-  { id: 'seoTitle', name: 'SEO Title', type: 'Symbol', required: false, validations: [{ size: { max: 60 } }] },
-  { id: 'metaDescription', name: 'Meta Description', type: 'Symbol', required: true, validations: [{ size: { max: 160 } }] },
-  { id: 'excerpt', name: 'Excerpt', type: 'Text', required: false, validations: [{ size: { max: 300 } }] },
-  { id: 'directAnswer', name: 'Direct Answer', type: 'Text', required: false, validations: [{ size: { max: 600 } }] },
-  { id: 'featuredImage', name: 'Featured Image', type: 'Link', linkType: 'Asset', required: true, validations: [{ linkMimetypeGroup: ['image'] }] },
-  { id: 'featuredImageAlt', name: 'Featured Image Alt Text', type: 'Symbol', required: false },
-  { id: 'body', name: 'Body', type: 'RichText', required: true, validations: [] },
-  { id: 'category', name: 'Category', type: 'Symbol', required: true, validations: [{ in: ['Security Insights', 'Guides', 'Home Security', 'Business Security', 'Company News'] }] },
-  { id: 'tags', name: 'Tags', type: 'Array', items: { type: 'Symbol' }, required: false },
-  { id: 'author', name: 'Author', type: 'Symbol', required: false },
-  { id: 'publishDate', name: 'Publish Date', type: 'Date', required: true },
-  { id: 'faqs', name: 'FAQs', type: 'Object', required: false },
-];
-
-const base = `https://api.contentful.com/spaces/${space}/environments/${envId}/content_types/${typeId}`;
+const api = `https://api.contentful.com/spaces/${space}/environments/${envId}/content_types`;
 const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/vnd.contentful.management.v1+json' };
 
-const existing = await fetch(base, { headers });
-const version = existing.ok ? (await existing.json()).sys.version : undefined;
-const put = await fetch(base, {
-  method: 'PUT',
-  headers: version ? { ...headers, 'X-Contentful-Version': String(version) } : headers,
-  body: JSON.stringify({ name: 'Blog Post', displayField: 'title', description: 'GCCTVMS Pakistan blog article (gcctvms.pk/blog)', fields }),
-});
-if (!put.ok) { console.error(`Create failed: ${put.status} ${await put.text()}`); process.exit(1); }
-const saved = await put.json();
-const act = await fetch(`${base}/published`, { method: 'PUT', headers: { ...headers, 'X-Contentful-Version': String(saved.sys.version) } });
-if (!act.ok) { console.error(`Activate failed: ${act.status} ${await act.text()}`); process.exit(1); }
-
-// Friendlier editors: slug generated from the title, FAQs as JSON, date with time.
-const ei = await fetch(`${base}/editor_interface`, { headers });
-if (ei.ok) {
-  const cur = await ei.json();
-  const controls = [
-    { fieldId: 'slug', widgetId: 'slugEditor', widgetNamespace: 'builtin' },
-    { fieldId: 'publishDate', widgetId: 'datePicker', widgetNamespace: 'builtin', settings: { format: 'timeZ', ampm: '24' } },
-    { fieldId: 'category', widgetId: 'dropdown', widgetNamespace: 'builtin' },
-    { fieldId: 'tags', widgetId: 'tagEditor', widgetNamespace: 'builtin' },
-    { fieldId: 'faqs', widgetId: 'objectEditor', widgetNamespace: 'builtin', settings: { helpText: 'Format: [{"question":"...","answer":"..."}]' } },
-  ];
-  await fetch(`${base}/editor_interface`, { method: 'PUT', headers: { ...headers, 'X-Contentful-Version': String(cur.sys.version) }, body: JSON.stringify({ controls }) });
+async function upsertType(id, body, controls) {
+  const url = `${api}/${id}`;
+  const existing = await fetch(url, { headers });
+  const version = existing.ok ? (await existing.json()).sys.version : undefined;
+  const put = await fetch(url, { method: 'PUT', headers: version ? { ...headers, 'X-Contentful-Version': String(version) } : headers, body: JSON.stringify(body) });
+  if (!put.ok) throw new Error(`${id}: save failed ${put.status} ${await put.text()}`);
+  const saved = await put.json();
+  const act = await fetch(`${url}/published`, { method: 'PUT', headers: { ...headers, 'X-Contentful-Version': String(saved.sys.version) } });
+  if (!act.ok) throw new Error(`${id}: activate failed ${act.status} ${await act.text()}`);
+  if (controls) {
+    const ei = await fetch(`${url}/editor_interface`, { headers });
+    if (ei.ok) {
+      const cur = await ei.json();
+      await fetch(`${url}/editor_interface`, { method: 'PUT', headers: { ...headers, 'X-Contentful-Version': String(cur.sys.version) }, body: JSON.stringify({ controls }) });
+    }
+  }
+  console.log(`Content type "${id}" is ready.`);
 }
-console.log(`Content type "${typeId}" is ready in space ${space} (${envId}).`);
+
+// FAQ entries are linked from a post's "FAQs" field.
+await upsertType(faqTypeId, {
+  name: 'FAQ', displayField: 'question', description: 'One question and answer, linked from a Blog Post',
+  fields: [
+    { id: 'question', name: 'Question', type: 'Symbol', required: true },
+    { id: 'answer', name: 'Answer', type: 'Text', required: true },
+  ],
+});
+
+await upsertType(postTypeId, {
+  name: 'Blog Post', displayField: 'title', description: 'GCCTVMS Pakistan blog article',
+  fields: [
+    { id: 'title', name: 'Title', type: 'Symbol', required: true },
+    { id: 'slug', name: 'Slug', type: 'Symbol', required: true, validations: [{ unique: true }, { regexp: { pattern: '^[a-z0-9]+(?:-[a-z0-9]+)*$' }, message: 'Lowercase letters, numbers and hyphens only' }] },
+    { id: 'cardTitle', name: 'Card Title', type: 'Symbol', required: false },
+    { id: 'excerpt', name: 'Excerpt', type: 'Symbol', required: false },
+    { id: 'coverImage', name: 'Cover Image', type: 'Link', linkType: 'Asset', required: true, validations: [{ linkMimetypeGroup: ['image'] }] },
+    { id: 'coverImageAltText', name: 'Cover Image Alt Text', type: 'Symbol', required: false },
+    { id: 'publishDate', name: 'Publish Date', type: 'Date', required: true },
+    { id: 'author', name: 'Author', type: 'Symbol', required: false },
+    { id: 'category', name: 'Category', type: 'Symbol', required: false },
+    { id: 'readTime', name: 'Read Time', type: 'Integer', required: false, validations: [{ range: { min: 1, max: 60 } }] },
+    { id: 'directAnswer', name: 'Direct Answer', type: 'Text', required: false },
+    { id: 'body', name: 'Body', type: 'RichText', required: true },
+    { id: 'ctaHeading', name: 'CTA Heading', type: 'Symbol', required: false },
+    { id: 'ctaText', name: 'CTA Text', type: 'Symbol', required: false },
+    { id: 'seoTitle', name: 'SEO Title', type: 'Symbol', required: false, validations: [{ size: { max: 60 } }] },
+    { id: 'metaDescription', name: 'Meta Description', type: 'Symbol', required: false, validations: [{ size: { max: 160 } }] },
+    { id: 'breadcrumbLabel', name: 'Breadcrumb Label', type: 'Symbol', required: false },
+    { id: 'faqTitle', name: 'FAQ Title', type: 'Symbol', required: false },
+    { id: 'faqs', name: 'FAQs', type: 'Array', required: false, items: { type: 'Link', linkType: 'Entry', validations: [{ linkContentType: [faqTypeId] }] } },
+  ],
+}, [
+  { fieldId: 'slug', widgetId: 'slugEditor', widgetNamespace: 'builtin' },
+  { fieldId: 'publishDate', widgetId: 'datePicker', widgetNamespace: 'builtin', settings: { format: 'timeZ', ampm: '24' } },
+]);

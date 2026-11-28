@@ -139,34 +139,55 @@ function normalise(data) {
   const now = Date.now();
   const seen = new Set();
   const posts = [];
+  const str = v => (typeof v === 'string' ? v.trim() : '');
+  // FAQs: "References, many" to FAQ entries (question + answer). The answer may be Long text or Rich text.
+  const readFaqs = list => (Array.isArray(list) ? list : []).map(item => {
+    const q = item?.sys?.type === 'Link' ? entries.get(item.sys.id)?.fields : (item?.fields || item);
+    if (!q) return null;
+    const question = str(q.question || q.title);
+    const a = q.answer ?? q.body;
+    if (!question || !a) return null;
+    if (typeof a === 'object' && a.nodeType) {
+      const html = rt.html(a);
+      return html.trim() ? { question, answerHtml: html, answerText: rt.text(a).replace(/\s+/g, ' ').trim() } : null;
+    }
+    const text = String(a).trim();
+    return text ? { question, answerHtml: text.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join(''), answerText: text } : null;
+  }).filter(Boolean);
+
   for (const e of data.items) {
     const f = e.fields || {};
-    const slug = slugify(f.slug || f.title);
-    if (!f.title || !slug || !f.publishDate || !f.body) { console.warn(`skip ${e.sys.id}: missing title, slug, publishDate or body`); continue; }
+    const title = str(f.title);
+    const slug = slugify(f.slug || title);
+    if (!title || !slug || !f.publishDate || !f.body) { console.warn(`skip ${e.sys.id}: missing title, slug, publishDate or body`); continue; }
     if (new Date(f.publishDate).getTime() > now) continue;
     if (seen.has(slug)) { console.warn(`skip ${e.sys.id}: duplicate slug "${slug}"`); continue; }
     seen.add(slug);
-    const img = assets.get(f.featuredImage?.sys?.id);
+    const img = assets.get((f.coverImage || f.featuredImage)?.sys?.id);
     const words = rt.text(f.body).split(/\s+/).filter(Boolean).length;
-    let faqs = Array.isArray(f.faqs) ? f.faqs : Array.isArray(f.faqs?.items) ? f.faqs.items : [];
-    faqs = faqs.filter(q => q && q.question && q.answer).map(q => ({ question: String(q.question), answer: String(q.answer) }));
+    const readTime = Number.isInteger(f.readTime) && f.readTime > 0 ? f.readTime : Math.max(1, Math.round(words / 200));
     posts.push({
-      id: e.sys.id, slug, title: f.title,
-      seoTitle: f.seoTitle || `${f.title} | GCCTVMS Pakistan`,
-      metaDescription: f.metaDescription || f.excerpt || '',
-      excerpt: f.excerpt || f.metaDescription || '',
-      directAnswer: f.directAnswer || '',
+      id: e.sys.id, slug, title,
+      cardTitle: str(f.cardTitle) || title,
+      breadcrumbLabel: str(f.breadcrumbLabel) || str(f.cardTitle) || title,
+      seoTitle: str(f.seoTitle) || `${title} | GCCTVMS Pakistan`,
+      metaDescription: str(f.metaDescription) || str(f.excerpt),
+      excerpt: str(f.excerpt) || str(f.metaDescription),
+      directAnswer: str(f.directAnswer),
       bodyHtml: rt.html(f.body),
       image: img?.fields?.file?.url || '',
       imageW: img?.fields?.file?.details?.image?.width, imageH: img?.fields?.file?.details?.image?.height,
-      imageAlt: f.featuredImageAlt || img?.fields?.description || f.title,
-      category: f.category || 'Security Insights',
+      imageAlt: str(f.coverImageAltText) || str(f.coverImageAlt) || str(f.featuredImageAlt) || img?.fields?.description || title,
+      category: str(f.category) || 'Security Insights',
       tags: Array.isArray(f.tags) ? f.tags.filter(Boolean) : [],
-      author: f.author || DEFAULT_AUTHOR,
+      author: str(f.author) || DEFAULT_AUTHOR,
       publishDate: f.publishDate,
       updatedAt: e.sys.updatedAt || f.publishDate,
-      readMins: Math.max(1, Math.round(words / 200)),
-      faqs,
+      readMins: readTime,
+      ctaHeading: str(f.ctaHeading) || 'Want your cameras watched live?',
+      ctaText: str(f.ctaText) || 'Schedule a call and tell us about your property and cameras.',
+      faqTitle: str(f.faqTitle) || 'Frequently Asked Questions',
+      faqs: readFaqs(f.faqs),
     });
   }
   posts.sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate));
@@ -204,7 +225,7 @@ function card(p, level = 2) {
                         <a href="${href}" class="post__img" tabindex="-1" aria-hidden="true">${p.image ? `<img src="${esc(imgUrl(p.image, 640))}" alt="" loading="lazy" decoding="async" width="640" height="360">` : ''}</a>
                         <div class="post__body">
                             <span class="post__cat">${esc(p.category)}</span>
-                            <h${level} class="post__title"><a href="${href}">${esc(p.title)}</a></h${level}>
+                            <h${level} class="post__title"><a href="${href}">${esc(p.cardTitle)}</a></h${level}>
                             ${p.excerpt ? `<p class="post__excerpt">${esc(p.excerpt)}</p>` : ''}
                             <div class="post__meta"><time datetime="${isoPk(p.publishDate)}">${fmtDate(p.publishDate)}</time> &middot; ${p.readMins} min read</div>
                             <a class="post__more" href="${href}">Read More &raquo;</a>
@@ -243,9 +264,9 @@ ${pagePosts.map(p => card(p, 2)).join('\n')}
 function postMain(p, related) {
   const faqHtml = p.faqs.length ? `
                     <section class="post-faq" aria-labelledby="faq-title">
-                        <h2 id="faq-title">Frequently Asked Questions</h2>
+                        <h2 id="faq-title">${esc(p.faqTitle)}</h2>
                         <div class="accordion">
-${p.faqs.map((q, i) => `                            <details${i === 0 ? ' open' : ''}><summary>${esc(q.question)}</summary><p>${esc(q.answer)}</p></details>`).join('\n')}
+${p.faqs.map((q, i) => `                            <details${i === 0 ? ' open' : ''}><summary>${esc(q.question)}</summary><div class="faq-answer">${q.answerHtml}</div></details>`).join('\n')}
                         </div>
                     </section>` : '';
   const tags = p.tags.length ? `
@@ -263,7 +284,7 @@ ${related.map(r => card(r, 3)).join('\n')}
         <section class="page-hero page-hero--post">
             <div class="container">
                 <nav class="crumbs" aria-label="Breadcrumb">
-                    <a href="/">Home</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">${esc(p.title)}</span>
+                    <a href="/">Home</a><span aria-hidden="true">/</span><a href="/blog/">Blog</a><span aria-hidden="true">/</span><span aria-current="page">${esc(p.breadcrumbLabel)}</span>
                 </nav>
                 <span class="hero__kicker"><span class="live-dot"></span>${esc(p.category)}</span>
                 <h1>${esc(p.title)}</h1>
@@ -280,8 +301,8 @@ ${related.map(r => card(r, 3)).join('\n')}
 ${p.bodyHtml}
                     </div>${faqHtml}${tags}
                     <div class="article-cta">
-                        <p class="article-cta__title">Want your cameras watched live?</p>
-                        <p>Schedule a call and tell us about your property and cameras.</p>
+                        <p class="article-cta__title">${esc(p.ctaHeading)}</p>
+                        <p>${esc(p.ctaText)}</p>
                         <a class="btn btn--primary" href="https://cal.com/mudassirali/30min" target="_blank" rel="noopener"><svg class="ic"><use href="#i-cal" /></svg>Schedule a Call</a>
                     </div>
                 </article>
@@ -364,9 +385,9 @@ const writeFile = (file, content) => { fs.mkdirSync(path.dirname(file), { recurs
         datePublished: isoPk(p.publishDate), dateModified: p.updatedAt, author: { '@type': 'Person', name: p.author },
         publisher: { '@id': org['@id'] }, mainEntityOfPage: url, inLanguage: 'en-PK', keywords: p.tags.length ? p.tags.join(', ') : undefined },
       org,
-      crumbs([['Home', SITE_URL + '/'], ['Blog', SITE_URL + '/blog/'], [p.title, url]]),
+      crumbs([['Home', SITE_URL + '/'], ['Blog', SITE_URL + '/blog/'], [p.breadcrumbLabel, url]]),
     ];
-    if (p.faqs.length) graph.push({ '@type': 'FAQPage', '@id': url + '#faq', mainEntity: p.faqs.map(q => ({ '@type': 'Question', name: q.question, acceptedAnswer: { '@type': 'Answer', text: q.answer } })) });
+    if (p.faqs.length) graph.push({ '@type': 'FAQPage', '@id': url + '#faq', mainEntity: p.faqs.map(q => ({ '@type': 'Question', name: q.question, acceptedAnswer: { '@type': 'Answer', text: q.answerText } })) });
     let html = setMain(template, postMain(p, related));
     html = setHead(html, { title: p.seoTitle, desc: p.metaDescription, url, image, type: 'article', noindex: false, ld: { '@context': 'https://schema.org', '@graph': graph } });
     writeFile(path.join(BLOG_DIR, p.slug, 'index.html'), rebase(html, 2));
