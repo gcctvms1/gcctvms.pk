@@ -3,7 +3,8 @@
 Posts are written in Contentful. Every day at **09:00 Pakistan time** a GitHub Action
 (`.github/workflows/blog-and-deploy.yml`) runs `scripts/build-blog.mjs`, which turns every
 post whose **Publish Date** has arrived into a static page under `gcctvms.pk/blog/`,
-commits the result, and uploads the site to Hostinger over FTP.
+commits the result, and publishes the website folder to the `live` branch, which Hostinger
+deploys through its Git integration.
 
 To post daily, write posts ahead and give each one a future Publish Date. Each morning's
 build publishes the ones that are due.
@@ -47,6 +48,25 @@ The field IDs must match exactly. To create the model automatically:
 CONTENTFUL_SPACE_ID=<space id> CONTENTFUL_MANAGEMENT_TOKEN=<CFPAT-...> node scripts/create-contentful-model.mjs
 ```
 
+## Deploying to Hostinger (Git)
+
+The `main` branch holds the website in `gcctvms.pk/` plus these scripts. The workflow copies
+just the website folder to the **`live`** branch (site files at the top level), and Hostinger
+deploys `live`.
+
+1. hPanel → Websites → gcctvmspk.com → Advanced → **GIT**. Copy the **SSH key** shown there.
+2. GitHub → this repo → Settings → **Deploy keys** → Add deploy key. Paste the key, give it a
+   name (e.g. "Hostinger"), leave "Allow write access" **off**, and save.
+3. Back in hPanel → GIT → Create a new repository:
+   - Repository: `git@github.com:gcctvms1/gcctvms.pk.git`
+   - Branch: `live`
+   - Directory: leave empty (deploys into `public_html`). Hostinger may require the folder to be empty first.
+4. Click **Auto Deployment** on the new entry and copy the webhook URL.
+5. GitHub → Settings → **Webhooks** → Add webhook: paste the URL, content type
+   `application/json`, "Just the push event", save.
+
+From then on, every run of the workflow updates `live` and Hostinger deploys it automatically.
+
 ## GitHub settings (repo → Settings → Secrets and variables → Actions)
 
 **Secrets**
@@ -55,25 +75,21 @@ CONTENTFUL_SPACE_ID=<space id> CONTENTFUL_MANAGEMENT_TOKEN=<CFPAT-...> node scri
 |---|---|
 | `CONTENTFUL_SPACE_ID` | Contentful → Settings → API keys |
 | `CONTENTFUL_DELIVERY_TOKEN` | "Content Delivery API - access token" from the same API key |
-| `FTP_SERVER` | Hostinger hPanel → Files → FTP Accounts (e.g. `ftp.gcctvmspk.com` or the IP shown) |
-| `FTP_USERNAME` | FTP username from hPanel |
-| `FTP_PASSWORD` | FTP password from hPanel |
 
 **Variables** (optional)
 
 | Name | Default | Use |
 |---|---|---|
 | `SITE_URL` | `https://gcctvms.pk` | Domain used in canonical links, sitemap and structured data. |
-| `FTP_SERVER_DIR` | `public_html/` | Folder on Hostinger the site is uploaded into. |
-| `FTP_PROTOCOL` | `ftp` | `ftps` if Hostinger requires it. |
 | `CONTENTFUL_ENVIRONMENT` | `master` | Contentful environment. |
 | `CONTENT_TYPE_ID` | `blogPost` | API identifier of the Blog Post content type, if yours is different. |
+| `USE_FTP` | off | Set to `true` to also upload over FTP (needs `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` secrets; optional `FTP_SERVER_DIR`, `FTP_PROTOCOL`). Not needed with Git deployment. |
 
 ## Running it
 
 - Daily: automatic at 04:00 UTC (09:00 PKT).
 - Now: GitHub → Actions → "Build blog and deploy" → Run workflow.
-- Any push to `main` also rebuilds and uploads the site.
+- Any push to `main` also rebuilds the blog and updates the `live` branch.
 - Optional instant publishing: add a Contentful webhook (Settings → Webhooks) on Entry publish/unpublish that POSTs to
   `https://api.github.com/repos/gcctvms1/gcctvms.pk/dispatches` with body `{"event_type":"contentful-publish"}`,
   header `Accept: application/vnd.github+json` and `Authorization: Bearer <GitHub token with repo access>`.

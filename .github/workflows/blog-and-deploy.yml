@@ -20,13 +20,17 @@ env:
   SITE_DIR: gcctvms.pk                       # folder in this repo that holds the website
   SITE_URL: ${{ vars.SITE_URL || 'https://gcctvms.pk' }}
   HAS_CONTENTFUL: ${{ secrets.CONTENTFUL_SPACE_ID != '' && secrets.CONTENTFUL_DELIVERY_TOKEN != '' }}
-  HAS_FTP: ${{ secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
+  # FTP upload is optional and off by default (Hostinger deploys the live branch through Git).
+  # To use FTP instead, add the repository variable USE_FTP = true and the FTP_* secrets.
+  HAS_FTP: ${{ vars.USE_FTP == 'true' && secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
 
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history, needed to publish the live branch
 
       - uses: actions/setup-node@v4
         with:
@@ -57,6 +61,13 @@ jobs:
             git push
           fi
 
+      # Hostinger deploys from the "live" branch: the website folder only, at the top level.
+      # Built with git subtree, so each deploy is a normal fast-forward commit.
+      - name: Publish website to the live branch
+        run: |
+          git subtree split --prefix="$SITE_DIR" -b live
+          git push origin live
+
       - name: Upload website to Hostinger (FTP)
         if: env.HAS_FTP == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
@@ -72,6 +83,3 @@ jobs:
             **/.git*/**
             **/node_modules/**
 
-      - name: Skip upload (FTP secrets not set)
-        if: env.HAS_FTP != 'true'
-        run: echo "::warning::FTP_SERVER / FTP_USERNAME / FTP_PASSWORD secrets are not set, so nothing was uploaded to Hostinger."
