@@ -67,6 +67,7 @@ CONTENTFUL_SPACE_ID=<space id> CONTENTFUL_MANAGEMENT_TOKEN=<CFPAT-...> node scri
 | `FTP_SERVER_DIR` | `public_html/` | Folder on Hostinger the site is uploaded into. |
 | `FTP_PROTOCOL` | `ftp` | `ftps` if Hostinger requires it. |
 | `CONTENTFUL_ENVIRONMENT` | `master` | Contentful environment. |
+| `CONTENT_TYPE_ID` | `blogPost` | API identifier of the Blog Post content type, if yours is different. |
 
 ## Running it
 
