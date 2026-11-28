@@ -20,9 +20,8 @@ env:
   SITE_DIR: gcctvms.pk                       # folder in this repo that holds the website
   SITE_URL: ${{ vars.SITE_URL || 'https://gcctvms.pk' }}
   HAS_CONTENTFUL: ${{ secrets.CONTENTFUL_SPACE_ID != '' && secrets.CONTENTFUL_DELIVERY_TOKEN != '' }}
-  # FTP upload is optional and off by default (Hostinger deploys the live branch through Git).
-  # To use FTP instead, add the repository variable USE_FTP = true and the FTP_* secrets.
-  HAS_FTP: ${{ vars.USE_FTP == 'true' && secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
+  # FTP upload runs whenever the FTP_* secrets are set (set the variable USE_FTP = false to turn it off).
+  HAS_FTP: ${{ vars.USE_FTP != 'false' && secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
 
 jobs:
   build-and-deploy:

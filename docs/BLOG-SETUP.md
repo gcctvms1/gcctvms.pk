@@ -83,7 +83,7 @@ From then on, every run of the workflow updates `live` and Hostinger deploys it 
 | `SITE_URL` | `https://gcctvms.pk` | Domain used in canonical links, sitemap and structured data. |
 | `CONTENTFUL_ENVIRONMENT` | `master` | Contentful environment. |
 | `CONTENT_TYPE_ID` | `blogPost` | API identifier of the Blog Post content type, if yours is different. |
-| `USE_FTP` | off | Set to `true` to also upload over FTP (needs `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` secrets; optional `FTP_SERVER_DIR`, `FTP_PROTOCOL`). Not needed with Git deployment. |
+| `USE_FTP` | on when FTP secrets exist | Uploads the site over FTP using the `FTP_SERVER`, `FTP_USERNAME`, `FTP_PASSWORD` secrets (optional `FTP_SERVER_DIR`, default `public_html/`, and `FTP_PROTOCOL`). Set to `false` to turn it off. |
 
 ## Running it
 
