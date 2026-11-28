@@ -1,0 +1,76 @@
+name: Build blog and deploy
+
+on:
+  schedule:
+    - cron: '0 4 * * *'        # every day at 04:00 UTC = 09:00 Pakistan time
+  workflow_dispatch:            # "Run workflow" button in the Actions tab
+  repository_dispatch:
+    types: [contentful-publish] # optional: instant rebuild from a Contentful webhook
+  push:
+    branches: [main]            # redeploy whenever the site is changed
+
+permissions:
+  contents: write
+
+concurrency:
+  group: blog-and-deploy
+  cancel-in-progress: false
+
+env:
+  SITE_DIR: gcctvms.pk                       # folder in this repo that holds the website
+  SITE_URL: ${{ vars.SITE_URL || 'https://gcctvms.pk' }}
+  HAS_CONTENTFUL: ${{ secrets.CONTENTFUL_SPACE_ID != '' && secrets.CONTENTFUL_DELIVERY_TOKEN != '' }}
+  HAS_FTP: ${{ secrets.FTP_SERVER != '' && secrets.FTP_USERNAME != '' && secrets.FTP_PASSWORD != '' }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Build blog from Contentful
+        if: env.HAS_CONTENTFUL == 'true'
+        env:
+          CONTENTFUL_SPACE_ID: ${{ secrets.CONTENTFUL_SPACE_ID }}
+          CONTENTFUL_DELIVERY_TOKEN: ${{ secrets.CONTENTFUL_DELIVERY_TOKEN }}
+          CONTENTFUL_ENVIRONMENT: ${{ vars.CONTENTFUL_ENVIRONMENT || 'master' }}
+        run: node scripts/build-blog.mjs
+
+      - name: Skip blog build (Contentful secrets not set)
+        if: env.HAS_CONTENTFUL != 'true'
+        run: echo "::warning::CONTENTFUL_SPACE_ID / CONTENTFUL_DELIVERY_TOKEN secrets are not set, so the blog was not rebuilt."
+
+      - name: Commit generated blog pages
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A "$SITE_DIR"
+          if git diff --cached --quiet; then
+            echo "No blog changes."
+          else
+            git commit -m "Blog: daily build $(date -u +%Y-%m-%d)"
+            git push
+          fi
+
+      - name: Upload website to Hostinger (FTP)
+        if: env.HAS_FTP == 'true'
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        with:
+          server: ${{ secrets.FTP_SERVER }}
+          username: ${{ secrets.FTP_USERNAME }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ${{ vars.FTP_PROTOCOL || 'ftp' }}
+          local-dir: ./gcctvms.pk/
+          server-dir: ${{ vars.FTP_SERVER_DIR || 'public_html/' }}
+          exclude: |
+            **/.git*
+            **/.git*/**
+            **/node_modules/**
+
+      - name: Skip upload (FTP secrets not set)
+        if: env.HAS_FTP != 'true'
+        run: echo "::warning::FTP_SERVER / FTP_USERNAME / FTP_PASSWORD secrets are not set, so nothing was uploaded to Hostinger."
