@@ -67,12 +67,38 @@ jobs:
           git subtree split --prefix="$SITE_DIR" -b live
           git push origin live
 
+      # Accept the FTP address in any common form (ftp://host, host:21, host/path, extra spaces)
+      # and check that it resolves before uploading.
+      - name: Check FTP server address
+        id: ftp
+        if: env.HAS_FTP == 'true'
+        env:
+          RAW_SERVER: ${{ secrets.FTP_SERVER }}
+          RAW_USER: ${{ secrets.FTP_USERNAME }}
+        run: |
+          host="$(printf '%s' "$RAW_SERVER" | tr -d '[:space:]')"
+          host="${host#*://}"; host="${host%%/*}"
+          port=21
+          case "$host" in *:*) port="${host##*:}"; host="${host%%:*}";; esac
+          user="$(printf '%s' "$RAW_USER" | tr -d '[:space:]')"
+          echo "::add-mask::$host"; echo "::add-mask::$user"
+          if ! getent hosts "$host" >/dev/null; then
+            echo "::error::FTP_SERVER does not resolve to a server. In hPanel > Files > FTP Accounts, copy the FTP IP or hostname (for example ftp.gcctvmspk.com) into the FTP_SERVER secret."
+            exit 1
+          fi
+          {
+            echo "host=$host"
+            echo "port=$port"
+            echo "user=$user"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Upload website to Hostinger (FTP)
         if: env.HAS_FTP == 'true'
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
+          server: ${{ steps.ftp.outputs.host }}
+          port: ${{ steps.ftp.outputs.port }}
+          username: ${{ steps.ftp.outputs.user }}
           password: ${{ secrets.FTP_PASSWORD }}
           protocol: ${{ vars.FTP_PROTOCOL || 'ftp' }}
           local-dir: ./gcctvms.pk/
