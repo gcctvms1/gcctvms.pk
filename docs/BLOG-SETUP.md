@@ -10,36 +10,36 @@ build publishes the ones that are due.
 
 ## Content model
 
-###  ("Blog Post")
+### `blogPost` ("Blog Post")
 
 | Name | Field ID | Type | Required | Used for |
 |---|---|---|---|---|
-| Title (entry title) |  | Short text | Yes | H1 on the post page |
-| Slug |  | Short text | Yes | URL:  (lowercase-with-hyphens, unique) |
-| Card Title |  | Short text | No | Title on the blog listing card (falls back to Title) |
-| Excerpt |  | Short text | No | Summary on the listing card |
-| Cover Image |  | Media | Yes | Top of the post and the listing card (1200x675 works best) |
-| Cover Image Alt Text |  | Short text | No | Image description for accessibility and SEO |
-| Publish Date |  | Date & time | Yes | Post goes live at the first daily build after this time |
-| Author |  | Short text | No | Defaults to "GCCTVMS Editorial Team" |
-| Category |  | Short text | No | Label above the title and on the card (defaults to "Security Insights") |
-| Read Time |  | Integer | No | Minutes; calculated from the body when empty |
-| Direct Answer |  | Long text | No | "Direct answer" box at the top of the post |
-| Body |  | Rich text | Yes | The article (Heading 1 is shown as Heading 2) |
-| CTA Heading |  | Short text | No | Call-to-action box at the end (default: "Want your cameras watched live?") |
-| CTA Text |  | Short text | No | Text in that box |
-| SEO Title |  | Short text | No | Browser tab and Google title, max 60 (default: "Title | GCCTVMS Pakistan") |
-| Meta Description |  | Short text | No | Google snippet, max 160 (falls back to Excerpt) |
-| Breadcrumb Label |  | Short text | No | Last breadcrumb item (falls back to Card Title, then Title) |
-| FAQ Title |  | Short text | No | Heading of the FAQ block (default: "Frequently Asked Questions") |
-| FAQs |  | References, many (FAQ) | No | FAQ block plus FAQ rich-result markup |
+| Title (entry title) | `title` | Short text | Yes | H1 on the post page |
+| Slug | `slug` | Short text | Yes | URL: `/blog/<slug>/` (lowercase-with-hyphens, unique) |
+| Card Title | `cardTitle` | Short text | No | Title on the blog listing card (falls back to Title) |
+| Excerpt | `excerpt` | Short text | No | Summary on the listing card |
+| Cover Image | `coverImage` | Media | Yes | Top of the post and the listing card (1200x675 works best) |
+| Cover Image Alt Text | `coverImageAltText` | Short text | No | Image description for accessibility and SEO |
+| Publish Date | `publishDate` | Date & time | Yes | Post goes live at the first daily build after this time |
+| Author | `author` | Short text | No | Defaults to "GCCTVMS Editorial Team" |
+| Category | `category` | Short text | No | Label above the title and on the card (defaults to "Security Insights") |
+| Read Time | `readTime` | Integer | No | Minutes; calculated from the body when empty |
+| Direct Answer | `directAnswer` | Long text | No | "Direct answer" box at the top of the post |
+| Body | `body` | Rich text | Yes | The article (Heading 1 is shown as Heading 2) |
+| CTA Heading | `ctaHeading` | Short text | No | Call-to-action box at the end (default: "Want your cameras watched live?") |
+| CTA Text | `ctaText` | Short text | No | Text in that box |
+| SEO Title | `seoTitle` | Short text | No | Browser tab and Google title, max 60 (default: Title + " \| GCCTVMS Pakistan") |
+| Meta Description | `metaDescription` | Short text | No | Google snippet, max 160 (falls back to Excerpt) |
+| Breadcrumb Label | `breadcrumbLabel` | Short text | No | Last breadcrumb item (falls back to Card Title, then Title) |
+| FAQ Title | `faqTitle` | Short text | No | Heading of the FAQ block (default: "Frequently Asked Questions") |
+| FAQs | `faqs` | References, many (FAQ) | No | FAQ block plus FAQ rich-result markup |
 
-###  ("FAQ")
+### `faq` ("FAQ")
 
 | Name | Field ID | Type | Required |
 |---|---|---|---|
-| Question (entry title) |  | Short text | Yes |
-| Answer |  | Long text (Rich text also works) | Yes |
+| Question (entry title) | `question` | Short text | Yes |
+| Answer | `answer` | Long text (Rich text also works) | Yes |
 
 The field IDs must match exactly. To create the model automatically:
 
